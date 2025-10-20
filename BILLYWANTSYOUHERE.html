@@ -1,457 +1,317 @@
 <!DOCTYPE Billy>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The Black Rectangle</title>
-    <style>
-        body, html {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: white; /* Start with white background */
-            overflow: hidden; /* Hide scrollbars */
-            font-family: monospace;
-            color: black;
-            transition: background-color 2s ease-in-out;
-        }
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>B-1L Ending — interactive</title>
+  <style>
+    html,body{height:100%;margin:0;background:#fff;overflow:hidden;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
 
-        #rectangle {
-            width: 100px;
-            height: 200px;
-            background-color: black;
-            border: 5px solid orangered; /* Orangeyellow-ish outline */
-            box-shadow: 0 0 15px orangered;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%); /* Center it initially */
-            z-index: 10;
-        }
+    /* the floating rectangle */
+    .rect-wrap{position:relative;width:120px;height:360px;pointer-events:auto}
+    .rect{
+      width:100%;height:100%;background:#000;border-radius:6px;box-shadow:0 0 0 4px rgba(255,170,0,0.95) inset, 0 10px 40px rgba(0,0,0,0.6);
+      outline:3px solid rgba(255,200,60,0.9);
+      transform-origin:center center;display:flex;align-items:center;justify-content:center;color:#fff;
+      user-select:none
+    }
 
-        #dialogue-box {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            padding: 20px;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            border: 2px solid white;
-            z-index: 20;
-            text-align: center;
-            width: 80%;
-            max-width: 400px;
-            box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
-        }
+    /* subtle label */
+    .label{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:12px;opacity:0.9}
 
-        #dialogue-text {
-            margin-bottom: 15px;
-            font-size: 1.1em;
-        }
+    /* floating via JS modifies translateY */
 
-        .option-button {
-            padding: 10px 20px;
-            margin: 5px;
-            cursor: pointer;
-            background-color: orangered;
-            color: black;
-            border: none;
-            font-weight: bold;
-            transition: background-color 0.3s;
-        }
+    /* dialog */
+    #dialog{position:fixed;left:50%;bottom:6vh;transform:translateX(-50%);background:rgba(255,255,255,0.95);border-radius:10px;padding:18px 20px;box-shadow:0 10px 30px rgba(0,0,0,0.15);max-width:640px;width:calc(100% - 40px);text-align:center}
+    #dialog p{margin:0 0 12px 0;font-size:16px;color:#111}
+    .btns{display:flex;gap:12px;justify-content:center}
+    button{padding:10px 14px;border-radius:8px;border:none;cursor:pointer;font-weight:600}
+    button.primary{background:linear-gradient(180deg,#ffb84d,#ff8f1a);color:#111}
+    button.ghost{background:#222;color:#fff}
 
-        .option-button:hover {
-            background-color: orange;
-        }
+    /* full-screen overlays */
+    #whiteFade{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity 700ms linear}
+    #blackCut{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity 200ms linear}
 
-        /* Shake animation for the rectangle */
-        @keyframes shake {
-            0% { transform: translate(-50%, -50%) translateX(0); }
-            10% { transform: translate(-50%, -50%) translateX(-10px); }
-            20% { transform: translate(-50%, -50%) translateX(10px); }
-            30% { transform: translate(-50%, -50%) translateX(-10px); }
-            40% { transform: translate(-50%, -50%) translateX(10px); }
-            50% { transform: translate(-50%, -50%) translateX(-10px); }
-            60% { transform: translate(-50%, -50%) translateX(10px); }
-            70% { transform: translate(-50%, -50%) translateX(-10px); }
-            80% { transform: translate(-50%, -50%) translateX(10px); }
-            90% { transform: translate(-50%, -50%) translateX(-10px); }
-            100% { transform: translate(-50%, -50%) translateX(0); }
-        }
+    /* ending text scroll */
+    #endingText{position:fixed;top:110%;left:50%;transform:translateX(-50%);font-size:40px;color:#fff;white-space:nowrap}
 
-        .shaking {
-            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
-            transform: translate(-50%, -50%);
-            perspective: 1000px;
-        }
+    /* corruption canvas sits above page */
+    #corruptCanvas{position:fixed;inset:0;pointer-events:none}
 
-        /* Full screen overlay for white fade-in and final black screen */
-        #overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: white;
-            opacity: 0; /* Start invisible */
-            z-index: 100;
-            pointer-events: none; /* Allows clicks to go through */
-            transition: opacity 3s ease-in-out;
-        }
+    /* flying char style (used as DOM elements) */
+    .flyChar{position:fixed;left:0;top:0;font-family:monospace;font-weight:700;pointer-events:none}
 
-        /* Final text screen */
-        #final-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: black;
-            color: white;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-            font-size: 3em;
-            overflow: hidden;
-            z-index: 200;
-            opacity: 0;
-            transition: opacity 1s;
-        }
+    a.returnLink{display:inline-block;margin-top:16px;color:#fff;background:#111;padding:8px 12px;border-radius:8px;text-decoration:none}
 
-        /* Corruption elements */
-        .corrupt-char {
-            position: absolute;
-            font-size: 1.5em;
-            color: white; /* Will be overwritten by JS */
-            pointer-events: none;
-        }
-    </style>
+    @media (max-width:600px){.rect-wrap{width:80px;height:240px}}
+  </style>
 </head>
 <body>
-
-    <div id="rectangle"></div>
-    <div id="dialogue-box">
-        <div id="dialogue-text">What are you doing?</div>
-        <div id="options">
-            </div>
+  <div id="stage">
+    <div class="rect-wrap" id="rectWrap">
+      <div class="rect" id="rect"> </div>
+      <div class="label">B-1L</div>
     </div>
-    <div id="overlay"></div>
-    <div id="final-screen">
-        <div id="final-text-container" style="height: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden;">
-            <div id="scrolling-text" style="position: absolute; white-space: nowrap;"></div>
-        </div>
-        <div id="redirect-message" style="position: absolute; bottom: 20px; font-size: 0.5em; opacity: 0;">Go back to <a href="https://ivorydevrimoalt.github.io" style="color: orangered;">https://ivorydevrimoalt.github.io</a></div>
+  </div>
+
+  <div id="dialog">
+    <p id="question">Hello. What are you doing?</p>
+    <div class="btns" id="answers">
+      <button class="primary" data-answer="next">Answer</button>
+      <button class="ghost" id="skip">Skip</button>
     </div>
+  </div>
 
-    <audio id="ending-audio" src="https://github.com/ivorydevrimoalt/Billy/raw/refs/heads/main/convert%20-%202025-10-20T230630.124.mp3" preload="auto"></audio>
+  <div id="whiteFade"></div>
+  <div id="blackCut"></div>
+  <div id="endingText">B-1L Ending</div>
+  <canvas id="corruptCanvas"></canvas>
 
-    <script>
-        const rect = document.getElementById('rectangle');
-        const dialogueBox = document.getElementById('dialogue-box');
-        const dialogueText = document.getElementById('dialogue-text');
-        const optionsDiv = document.getElementById('options');
-        const overlay = document.getElementById('overlay');
-        const finalScreen = document.getElementById('final-screen');
-        const endingAudio = document.getElementById('ending-audio');
-        const scrollingText = document.getElementById('scrolling-text');
-        const redirectMessage = document.getElementById('redirect-message');
-        const body = document.body;
+  <audio id="endingAudio" preload="auto" src="https://github.com/ivorydevrimoalt/Billy/raw/refs/heads/main/convert%20-%202025-10-20T230630.124.mp3"></audio>
 
-        let time = 0;
-        let dialogueStep = 0;
+  <script>
+    // Simple state-machine for the question flow
+    const questions = [
+      'Hello. What are you doing?',
+      'Why are you still here?',
+      'Do you remember where you came from?',
+      'Do you wish to bring back everything?'
+    ];
+    let step = 0;
+    const questionEl = document.getElementById('question');
+    const answers = document.getElementById('answers');
+    const rect = document.getElementById('rect');
+    const rectWrap = document.getElementById('rectWrap');
+    const whiteFade = document.getElementById('whiteFade');
+    const blackCut = document.getElementById('blackCut');
+    const endingText = document.getElementById('endingText');
+    const endingAudio = document.getElementById('endingAudio');
+    const corruptCanvas = document.getElementById('corruptCanvas');
+    const dialog = document.getElementById('dialog');
 
-        // --- Dialogue Steps ---
-        const dialogues = [
-            "What are you doing?",
-            "Are you enjoying yourself?",
-            "Should you be here?",
-            "Is there something you want to see?",
-            "Do you wish to bring back everything?"
-        ];
+    // Make answers dynamic
+    function updateQuestion(){
+      questionEl.textContent = questions[step] || '';
+      // final question shows Yes/No
+      answers.innerHTML = '';
+      if(questions[step] === 'Do you wish to bring back everything?'){
+        const yes = document.createElement('button'); yes.className='primary'; yes.textContent='Yes'; yes.onclick = onYes;
+        const no = document.createElement('button'); no.className='ghost'; no.textContent='No'; no.onclick = onNo;
+        answers.appendChild(yes); answers.appendChild(no);
+      } else {
+        const next = document.createElement('button'); next.className='primary'; next.textContent='Continue'; next.onclick = ()=>{ step++; updateQuestion(); };
+        const back = document.createElement('button'); back.className='ghost'; back.textContent='Back'; back.onclick = ()=>{ step=Math.max(0,step-1); updateQuestion(); };
+        answers.appendChild(next); answers.appendChild(back);
+      }
+    }
 
-        // --- Sine Wave Movement (y-axis float) ---
-        function animateRectangle() {
-            // Sine wave for Y-axis movement
-            // Amplitude (100px) and frequency (0.05) are adjustable
-            const sineY = Math.sin(time * 0.05) * 100;
-            
-            // Apply the transform. The initial centering (-50%, -50%) is preserved.
-            rect.style.transform = `translate(-50%, calc(-50% + ${sineY}px))`;
-            
-            time += 1;
-            requestAnimationFrame(animateRectangle);
-        }
-        animateRectangle();
+    document.querySelector('#answers').addEventListener('click', (e)=>{
+      if(e.target.dataset.answer==='next'){ step++; updateQuestion(); }
+    });
+    document.getElementById('skip').addEventListener('click', ()=>{ step = questions.length -1; updateQuestion(); });
 
+    updateQuestion();
 
-        // --- Dialogue Handlers ---
+    // Floating sine motion
+    let t = 0; function animate(){
+      t += 0.02;
+      const y = Math.sin(t) * 26; // vertical amplitude
+      rectWrap.style.transform = `translateY(${y}px)`;
+      requestAnimationFrame(animate);
+    }
+    animate();
 
-        function showDialogue() {
-            dialogueText.textContent = dialogues[dialogueStep];
-            optionsDiv.innerHTML = ''; // Clear old buttons
+    // Shake animation helper
+    function shake(el, intensity=14, duration=700){
+      const start = performance.now();
+      const orig = el.style.transform || '';
+      function step(now){
+        const p = (now - start) / duration;
+        if(p >= 1){ el.style.transform = orig; return; }
+        const f = Math.sin(p * Math.PI * 8) * (1 - p);
+        const rx = (Math.random()*2-1) * intensity * f;
+        const ry = (Math.random()*2-1) * intensity * f;
+        const r = (Math.random()*2-1) * intensity * f * 0.2;
+        el.style.transform = `translate(${rx}px, ${ry}px) rotate(${r}deg)`;
+        requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
 
-            if (dialogueStep < dialogues.length - 1) {
-                // For all steps except the last one, just show a "..." button
-                const nextButton = document.createElement('button');
-                nextButton.className = 'option-button';
-                nextButton.textContent = '...';
-                nextButton.onclick = () => {
-                    dialogueStep++;
-                    showDialogue();
-                };
-                optionsDiv.appendChild(nextButton);
-            } else {
-                // Last step: "Do you wish to bring back everything?"
-                const yesButton = document.createElement('button');
-                yesButton.className = 'option-button';
-                yesButton.textContent = 'Yes';
-                yesButton.onclick = startYesEnding;
-                
-                const noButton = document.createElement('button');
-                noButton.className = 'option-button';
-                noButton.textContent = 'No';
-                noButton.onclick = startNoEnding;
+    // YES flow
+    async function onYes(){
+      // ensure user gesture allows playback
+      try{ await endingAudio.play(); } catch(e){ /* will play after gesture */ }
+      shake(rectWrap, 18, 900);
+      dialog.style.pointerEvents='none';
+      setTimeout(()=>{
+        // fade to white
+        whiteFade.style.pointerEvents='auto';
+        whiteFade.style.transition = 'opacity 900ms linear';
+        whiteFade.style.opacity = '1';
 
-                optionsDiv.appendChild(yesButton);
-                optionsDiv.appendChild(noButton);
-            }
-        }
-        
-        // Start the dialogue on load
-        showDialogue();
+        setTimeout(()=>{
+          // cut to black quickly
+          whiteFade.style.opacity = '0';
+          blackCut.style.pointerEvents='auto';
+          blackCut.style.opacity = '1';
 
+          // show scrolling text
+          endingText.style.transition = 'transform 6s linear';
+          endingText.style.transform = 'translate(-50%, -40vh)';
 
-        // --- YES Ending Logic (Bring back everything) ---
+          // ensure audio playing
+          endingAudio.currentTime = 0; endingAudio.play().catch(()=>{});
 
-        function startYesEnding() {
-            dialogueBox.style.display = 'none';
-            rect.classList.add('shaking');
-            
-            // Fade in the white screen
-            setTimeout(() => {
-                overlay.style.opacity = '1';
-                
-                // Cut to black screen after white fade is complete
-                setTimeout(() => {
-                    // Stop sine wave and shaking
-                    rect.style.transform = 'translate(-50%, -50%)'; // Reset position
-                    rect.classList.remove('shaking');
-                    
-                    // Hide rectangle and overlay
-                    rect.style.display = 'none';
-                    overlay.style.display = 'none';
+          // after a pause show return message
+          setTimeout(()=>{
+            // place a small message with link
+            const el = document.createElement('div');
+            el.style.position='fixed';el.style.left='50%';el.style.top='85%';el.style.transform='translateX(-50%)';el.style.color='#fff';el.style.fontSize='16px';el.style.textAlign='center';
+            el.innerHTML = 'Go back to <a class="returnLink" href="https://ivorydevrimoalt.github.io" target="_blank">https://ivorydevrimoalt.github.io</a>';
+            document.body.appendChild(el);
+          }, 4000);
 
-                    // Show final black screen
-                    finalScreen.style.opacity = '1';
-                    body.style.backgroundColor = 'black'; // Ensure body is black
+        }, 1200);
+      }, 400);
+    }
 
-                    playEndingSequence();
+    // NO flow — corruption
+    function onNo(){
+      shake(rectWrap, 20, 900);
+      dialog.style.pointerEvents='none';
+      // start corrupt visuals
+      startCorruption();
+      // start corrupted audio synth
+      startSynthCorruption();
+      // after 15s open new tab
+      setTimeout(()=>{
+        window.open('https://ivorydevrimoalt.github.io', '_blank');
+      }, 15000);
+    }
 
-                }, 3000); // Wait for the 3s white fade-in transition
-            }, 500); // Initial shake time
-        }
+    // Corruption visuals: flying chars + DOM transforms
+    function startCorruption(){
+      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%&*()[]{}<>\/|<>";
+      const max = 110;
+      const w = window.innerWidth, h = window.innerHeight;
+      corruptCanvas.width = w; corruptCanvas.height = h;
+      const ctx = corruptCanvas.getContext('2d');
 
-        function playEndingSequence() {
-            endingAudio.play().catch(e => console.error("Audio playback failed:", e));
+      // periodic random CSS skews to body
+      let cssInt = setInterval(()=>{
+        document.body.style.background = `hsl(${Math.random()*360},${40+Math.random()*60}%,${10+Math.random()*60}%)`;
+        document.body.style.filter = `blur(${Math.random()*6}px) hue-rotate(${Math.random()*360}deg)`;
+        document.body.style.transform = `rotate(${(Math.random()-0.5)*10}deg) skew(${(Math.random()-0.5)*40}deg, ${(Math.random()-0.5)*40}deg)`;
+      }, 350);
 
-            const text = "B-1L Ending";
-            scrollingText.textContent = text;
-            
-            // Scroll logic
-            const containerWidth = finalScreen.clientWidth;
-            const textWidth = scrollingText.scrollWidth;
-            let currentScroll = containerWidth;
-            
-            function scroll() {
-                currentScroll -= 2; // Scroll speed
-                if (currentScroll < -textWidth) {
-                    currentScroll = containerWidth;
-                }
-                scrollingText.style.transform = `translateX(${currentScroll}px)`;
-                requestAnimationFrame(scroll);
-            }
-            scroll();
+      // create flying DOM characters
+      const flyEls = [];
+      for(let i=0;i<max;i++){
+        const el = document.createElement('div');
+        el.className='flyChar';
+        el.textContent = chars.charAt(Math.floor(Math.random()*chars.length));
+        el.style.left = Math.random()*w+'px';el.style.top = Math.random()*h+'px';
+        el.style.fontSize = `${6+Math.random()*56}px`;
+        el.style.color = `hsla(${Math.random()*360},${30+Math.random()*70}%,${20+Math.random()*70}%,${0.7})`;
+        el.style.transform = `translate(-50%,-50%) rotate(${Math.random()*360}deg) scale(${0.5+Math.random()*2})`;
+        document.body.appendChild(el);
+        flyEls.push(el);
+      }
 
-            // Show redirect message after 10 seconds
-            setTimeout(() => {
-                redirectMessage.style.transition = 'opacity 2s';
-                redirectMessage.style.opacity = '1';
-            }, 10000);
-        }
-
-        
-        // --- NO Ending Logic (Corrupt the site) ---
-
-        let audioContext;
-        let oscillators = [];
-        const corruptChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+{}[]:;\"'<,>.?/|";
-        const corruptionDuration = 15000; // 15 seconds
-
-        function startNoEnding() {
-            dialogueBox.style.display = 'none';
-            rect.classList.add('shaking');
-
-            // Immediately start corruption
-            setTimeout(() => {
-                body.style.backgroundColor = 'black';
-                rect.classList.remove('shaking');
-                startAudioCorruption();
-                startVisualCorruption();
-            }, 500); // Start after initial shake
-
-            // Redirect after 15 seconds
-            setTimeout(() => {
-                stopAudioCorruption();
-                window.location.href = 'about:blank'; // Redirect to a new tab
-            }, corruptionDuration);
-        }
-
-        // --- Audio Corruption ---
-        function startAudioCorruption() {
-            if (typeof AudioContext !== 'undefined') {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            } else {
-                console.error("AudioContext not supported. Audio corruption skipped.");
-                return;
-            }
-
-            const waveTypes = ['sine', 'square', 'triangle', 'sawtooth'];
-            const numOscillators = 5;
-
-            for (let i = 0; i < numOscillators; i++) {
-                const oscillator = audioContext.createOscillator();
-                const gainNode = audioContext.createGain();
-
-                // Random wave type and frequency
-                oscillator.type = waveTypes[Math.floor(Math.random() * waveTypes.length)];
-                oscillator.frequency.setValueAtTime(Math.random() * 500 + 100, audioContext.currentTime); // 100Hz to 600Hz
-
-                // Randomize gain (volume)
-                gainNode.gain.setValueAtTime(Math.random() * 0.3 + 0.1, audioContext.currentTime); // 0.1 to 0.4 volume
-
-                oscillator.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-                oscillator.start();
-                
-                oscillators.push({ oscillator, gainNode });
-                
-                // Randomly change frequency and gain over time
-                setInterval(() => {
-                    const now = audioContext.currentTime;
-                    // Exponential change for a smoother, yet jarring, sound
-                    oscillator.frequency.exponentialRampToValueAtTime(Math.random() * 800 + 50, now + 0.5);
-                    gainNode.gain.exponentialRampToValueAtTime(Math.random() * 0.5 + 0.05, now + 0.5);
-                }, Math.random() * 500 + 50);
-            }
+      // animate canvas noise
+      let start = performance.now();
+      function draw(now){
+        const dt = now - start;
+        ctx.clearRect(0,0,w,h);
+        const count = 200;
+        for(let i=0;i<count;i++){
+          ctx.fillStyle = `hsla(${(i*13+dt*0.02)%360}, ${30+Math.sin(dt*0.001+i)*50}%, ${20+Math.cos(dt*0.001+i)*50}%, 0.8)`;
+          const x = (Math.sin(i*12.9898 + dt*0.001 + i)*0.5+0.5)*w;
+          const y = (Math.cos(i*78.233 + dt*0.001 + i)*0.5+0.5)*h;
+          const s = 2 + Math.abs(Math.sin(dt*0.01 + i))*40;
+          ctx.save();
+          ctx.translate(x,y);
+          ctx.rotate(Math.sin(i + dt*0.0005));
+          ctx.fillRect(-s/2,-s/2,s,s);
+          ctx.restore();
         }
 
-        function stopAudioCorruption() {
-            oscillators.forEach(osc => {
-                osc.oscillator.stop();
-            });
-            oscillators = [];
-            if (audioContext) {
-                audioContext.close();
-            }
+        // animate DOM chars
+        for(let i=0;i<flyEls.length;i++){
+          const e = flyEls[i];
+          const nx = parseFloat(e.style.left) + Math.sin((now+i*37)/300 + i)*6 + (Math.random()-0.5)*12;
+          const ny = parseFloat(e.style.top) + Math.cos((now+i*53)/400 + i)*6 + (Math.random()-0.5)*12;
+          e.style.left = (nx % w + w) % w + 'px';
+          e.style.top = (ny % h + h) % h + 'px';
+          e.style.transform = `translate(-50%,-50%) rotate(${(now/30 + i*10)%360}deg) scale(${0.3+Math.abs(Math.sin(now/200 + i))*2}) skew(${(Math.random()-0.5)*80}deg, ${(Math.random()-0.5)*80}deg)`;
         }
 
-        // --- Visual Corruption ---
-        function createCorruptChar() {
-            const char = document.createElement('div');
-            char.className = 'corrupt-char';
-            char.textContent = corruptChars[Math.floor(Math.random() * corruptChars.length)];
-            
-            // Random initial position
-            char.style.left = `${Math.random() * 100}vw`;
-            char.style.top = `${Math.random() * 100}vh`;
-            
-            // Random color
-            char.style.color = `rgb(${Math.floor(Math.random() * 256)}, ${Math.floor(Math.random() * 256)}, ${Math.floor(Math.random() * 256)})`;
-            
-            // Random size
-            const size = Math.random() * 4 + 1; // 1em to 5em
-            char.style.fontSize = `${size}em`;
+        if(now - start < 16000) requestAnimationFrame(draw);
+        else {
+          // cleanup some styles
+          clearInterval(cssInt);
+        }
+      }
+      requestAnimationFrame(draw);
+    }
 
-            // Random movement and transformation parameters
-            const speedX = (Math.random() - 0.5) * 4;
-            const speedY = (Math.random() - 0.5) * 4;
-            const sineOffset = Math.random() * 100;
-            const sineFreq = Math.random() * 0.2;
-            const rotateSpeed = (Math.random() - 0.5) * 5;
+    // Corruption sound: use WebAudio to generate random waves
+    let audioCtx, osc, gainNode, noiseNode;
+    function startSynthCorruption(){
+      if(window.AudioContext || window.webkitAudioContext){
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        gainNode = audioCtx.createGain(); gainNode.gain.value = 0.05; gainNode.connect(audioCtx.destination);
 
-            // Apply random transforms (rotation, skew)
-            let rotation = Math.random() * 360;
-            const skewX = (Math.random() - 0.5) * 90; // -45deg to 45deg
-            const skewY = (Math.random() - 0.5) * 90;
-            
-            let charTime = 0;
-            let currentX = parseFloat(char.style.left);
-            let currentY = parseFloat(char.style.top);
+        const types = ['sine','square','triangle','sawtooth'];
 
-            function updateChar() {
-                // Random position update with wave function influence (sine, etc.)
-                currentX += speedX + Math.sin(charTime * sineFreq) * 5;
-                currentY += speedY + Math.cos(charTime * sineFreq) * 5;
+        // rapidly switch oscillators
+        function makeOsc(){
+          if(!audioCtx) return;
+          osc && osc.stop();
+          osc = audioCtx.createOscillator();
+          osc.type = types[Math.floor(Math.random()*types.length)];
+          osc.frequency.value = 80 + Math.random()*1200;
+          const det = audioCtx.createOscillator(); det.type='sine'; det.frequency.value = 0.2 + Math.random()*10;
+          const detGain = audioCtx.createGain(); detGain.gain.value = 20;
+          det.connect(detGain); detGain.connect(osc.frequency);
+          osc.connect(gainNode);
+          osc.start(); det.start();
 
-                // Wrap around the screen
-                if (currentX > 100) currentX = 0;
-                if (currentX < 0) currentX = 100;
-                if (currentY > 100) currentY = 0;
-                if (currentY < 0) currentY = 100;
-                
-                rotation += rotateSpeed;
-
-                char.style.left = `${currentX}vw`;
-                char.style.top = `${currentY}vh`;
-                char.style.transform = `rotate(${rotation}deg) skew(${skewX}deg, ${skewY}deg)`;
-
-                charTime++;
-                
-                if (Date.now() < corruptionStartTime + corruptionDuration) {
-                    requestAnimationFrame(updateChar);
-                } else {
-                    char.remove(); // Clean up characters
-                }
-            }
-
-            body.appendChild(char);
-            requestAnimationFrame(updateChar);
+          // random stop time
+          const stopAfter = 150 + Math.random()*1200;
+          setTimeout(()=>{ try{ osc.stop(); det.stop(); }catch(e){} }, stopAfter);
         }
 
-        let corruptionStartTime;
+        // create noisy LFO elements too
+        let cnt=0;
+        const int = setInterval(()=>{
+          makeOsc();
+          cnt++;
+          // ramp small gain randomness
+          gainNode.gain.setValueAtTime(0.02 + Math.random()*0.12, audioCtx.currentTime);
+          if(cnt>80){ clearInterval(int); }
+        }, 120);
+      }
+    }
 
-        function startVisualCorruption() {
-            corruptionStartTime = Date.now();
-            rect.style.zIndex = '50'; // Bring rectangle to the front of flying characters
-            
-            // Continuous generation of flying characters
-            const characterInterval = setInterval(() => {
-                if (Date.now() < corruptionStartTime + corruptionDuration) {
-                    createCorruptChar();
-                } else {
-                    clearInterval(characterInterval); // Stop creating new characters
-                }
-            }, 50); // Create a new character every 50ms (20 per second)
-            
-            // Background color flicker/corruption
-            const bodyColorInterval = setInterval(() => {
-                if (Date.now() < corruptionStartTime + corruptionDuration) {
-                    const r = Math.floor(Math.random() * 256);
-                    const g = Math.floor(Math.random() * 256);
-                    const b = Math.floor(Math.random() * 256);
-                    body.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
-                } else {
-                    clearInterval(bodyColorInterval);
-                    body.style.backgroundColor = 'white'; // Reset
-                }
-            }, 100);
-        }
-    </script>
+    // make sure resizing keeps canvas full
+    window.addEventListener('resize', ()=>{
+      corruptCanvas.width = window.innerWidth; corruptCanvas.height = window.innerHeight;
+    });
+
+    // Ensure that a user click anywhere will unlock audio permission for synths
+    document.body.addEventListener('pointerdown', ()=>{
+      if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+      if(endingAudio && endingAudio.paused) {
+        // do nothing until user chooses yes; but interaction makes play allowed later
+      }
+    }, {once:true});
+
+  </script>
 </body>
 </html>
 <script>
